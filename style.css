@@ -143,12 +143,19 @@ body {
 .tickets {
   position: fixed;
   left: 50%;
-  top: 0;
+  top: -200px; /* Por defecto para PC */
   width: 480px;
   height: 760px;
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 20;
+}
+
+/* Para smartphones: top será 200px */
+@media (max-width: 600px) {
+  .tickets {
+    top: 200px;
+  }
 }
 
 .ticket {
