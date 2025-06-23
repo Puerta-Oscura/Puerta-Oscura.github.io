@@ -187,13 +187,13 @@ body {
   opacity: 1;
   transform: translate(-50%, 40px) scale(1.18) rotate(-4deg);
   z-index: 12;
-  top: +30%;
+  top: +28%;
 }
 .ticket.fase2-2 {
   opacity: 1;
   transform: translate(-50%, 220px) scale(1.18) rotate(4deg);
   z-index: 11;
-  top: +40%;
+  top: +42%;
 }
 
 .oculto {
