@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const tickets = document.getElementById('tickets');
   const ticket1 = document.getElementById('ticket1');
   const ticket2 = document.getElementById('ticket2');
-  const formUrl1 = "https://forms.gle/3PYaDjUqeTUHmHqS8"; // FORMULARIO 1
-  const formUrl2 = "https://forms.gle/3PYaDjUqeTUHmHqS8"; // FORMULARIO 2
+  const formUrl1 = "https://www.youtube.com/watch?v=bRzWIODPeGs"; // FORMULARIO 1
+  const formUrl2 = "https://www.youtube.com/watch?v=hOxi-x1wf6M"; // FORMULARIO 2
 
   // Quitar clases previas por si acaso
   ticket1.className = "ticket";
