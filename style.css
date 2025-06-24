@@ -152,7 +152,7 @@ body {
 }
 
 /* Para smartphones: top será 200px */
-@media (max-width: 600px) {
+@media screen and (max-width: 600px) {
   .tickets {
     top: 200px;
   }
