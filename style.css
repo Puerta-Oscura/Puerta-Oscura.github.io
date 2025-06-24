@@ -140,6 +140,12 @@ body {
 
 /* -- TICKETS ANIMATION -- */
 
+@media screen and (max-width: 600px) {
+  .tickets {
+    top: 200px;
+  }
+}
+
 .tickets {
   position: fixed;
   left: 50%;
@@ -152,11 +158,7 @@ body {
 }
 
 /* Para smartphones: top será 200px */
-@media screen and (max-width: 600px) {
-  .tickets {
-    top: 200px;
-  }
-}
+
 
 .ticket {
   position: absolute;
