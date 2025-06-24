@@ -140,16 +140,16 @@ body {
 
 /* -- TICKETS ANIMATION -- */
 
-@media only screen and (max-width: 600px) {
+@media only screen and (min-width: 600px) {
   .tickets {
-    top: 200px;
+    top: -200px;
   }
 }
 
 .tickets {
   position: fixed;
   left: 50%;
-  top: -200px; /* Por defecto para PC */
+  top: 200px; /* Por defecto para PC */
   width: 480px;
   height: 760px;
   transform: translateX(-50%);
