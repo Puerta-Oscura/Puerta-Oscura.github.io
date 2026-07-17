@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cámara Instantánea</title>
+    <style>
+        /* --- SISTEMA DE DISEÑO Y CONFIGURACIÓN CSS --- */
+        :root {
+            /* Colores */
+            --bg-color: #f7f9fa;
+            --polaroid-white: #ffffff;
+            --shadow-color: rgba(0, 0, 0, 0.06);
+            --shadow-hover: rgba(0, 0, 0, 0.12);
+            --flash-color: rgba(255, 255, 255, 0.98);
+
+            /* Tamaño responsivo de la cámara (CLAMP) */
+            --camera-size: clamp(300px, 65vw, 480px);
+
+            /* Duraciones por defecto (se sincronizan con JS) */
+            --flash-duration: 650ms;
+            --photo-slide-duration: 1200ms;
+            --camera-exit-duration: 1000ms;
+            --photo-2-delay: 600ms;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        /* Contenedor principal centrado */
+        .app-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- EFECTO DE FLASH --- */
+        .flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--flash-color);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .flash-overlay.active {
+            animation: flashEffect var(--flash-duration) cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+
+        @keyframes flashEffect {
+            0% {
+                opacity: 0;
+            }
+
+            8% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        /* --- CAPA INDEPENDIENTE DE LA CÁMARA (Detrás de las fotos) --- */
+        .camera-container {
+            position: absolute;
+            width: var(--camera-size);
+            height: var(--camera-size);
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform var(--camera-exit-duration) cubic-bezier(0.76, 0, 0.24, 1);
+            pointer-events: none;
+        }
+
+        /* Cuerpo interactivo de la cámara */
+        .camera-body {
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .camera-body:hover {
+            transform: scale(1.03);
+        }
+
+        .camera-body:active {
+            transform: scale(0.97);
+        }
+
+        .camera-body img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        /* Estado: La cámara se retira sola hacia arriba */
+        .camera-container.camera-exit {
+            transform: translateY(-130vh) rotate(-5deg);
+        }
+
+        /* --- CAPA INDEPENDIENTE DE LAS FOTOS (Delante de la cámara) --- */
+        .photos-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .photo-card {
+            position: absolute;
+            /* Tamaños escalados un 35% */
+            width: clamp(230px, 38vw, 320px);
+            height: clamp(270px, 44vw, 390px);
+            background-color: var(--polaroid-white);
+            padding: clamp(10px, 2vw, 16px) clamp(10px, 2vw, 16px) clamp(44px, 7vw, 64px) clamp(10px, 2vw, 16px);
+            box-shadow: 0 4px 15px var(--shadow-color);
+            border-radius: 2px;
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+
+            /* Punto de origen alineado con el área de impresión de la cámara */
+            top: calc(50% + var(--camera-size) * (0.5 - (289 / 1254)));
+            left: 50%;
+            transform: translate(-50%, -100%) scale(0.1);
+            opacity: 0;
+            pointer-events: none;
+
+            transition:
+                transform var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1),
+                top var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1),
+                left var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1),
+                opacity var(--photo-slide-duration) ease-out,
+                box-shadow 0.3s ease;
+        }
+
+        .photo-card img {
+            width: 100%;
+            height: 80%;
+            object-fit: cover;
+            background-color: #eee;
+            border: 1px solid rgba(0, 0, 0, 0.02);
+        }
+
+        /* --- TEXTO MANUSCRITO EN LA ZONA INFERIOR --- */
+        .photo-caption {
+            margin-top: auto;
+            /* Lo desplaza hacia el margen inferior blanco */
+            font-family: 'Segoe Print', 'Bradley Hand', 'Noteworthy', 'Chalkboard SE', 'Caveat', cursive;
+            font-size: clamp(20px, 3.2vw, 27px);
+            /* Texto más grande */
+            color: #000000;
+            /* Color completamente negro */
+            text-align: center;
+            width: 100%;
+            padding-top: clamp(6px, 1.5vw, 12px);
+            letter-spacing: -0.5px;
+            user-select: none;
+            opacity: 1;
+            /* Opaco al 100% por defecto */
+        }
+
+        /* Opacidad obligatoria al 100% durante el revelado y en el estado final */
+        .app-container.shooting .photo-card,
+        .app-container.revealed .photo-card {
+            opacity: 1 !important;
+        }
+
+        /* --- ANIMACIONES DE EXPULSIÓN (Alineadas al centro rectas, luego se abren y rotan) --- */
+
+        .app-container.shooting .photo-card.photo-1 {
+            animation: slideOutPhoto1 var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .app-container.shooting .photo-card.photo-2 {
+            animation: slideOutPhoto2 var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation-delay: var(--photo-2-delay);
+        }
+
+        /* --- KEYFRAMES ESCRITORIO --- */
+        @keyframes slideOutPhoto1 {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -100%) scale(0.1) rotate(0deg);
+            }
+
+            15% {
+                opacity: 1;
+            }
+
+            /* FASE 1: Sale centrada y completamente recta de la ranura real */
+            65% {
+                opacity: 1;
+                transform: translate(-50%, 0%) scale(0.9) rotate(0deg);
+            }
+
+            /* FASE 2: Se desliza lateralmente a la izquierda y rota en su lugar */
+            100% {
+                opacity: 1;
+                transform: translate(-105%, -20%) scale(0.9) rotate(-4deg);
+            }
+        }
+
+        @keyframes slideOutPhoto2 {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -100%) scale(0.1) rotate(0deg);
+            }
+
+            15% {
+                opacity: 1;
+            }
+
+            /* FASE 1: Sale centrada y completamente recta de la ranura */
+            65% {
+                opacity: 1;
+                transform: translate(-50%, 0%) scale(0.9) rotate(0deg);
+            }
+
+            /* FASE 2: Se desliza lateralmente a la derecha y rota en su lugar */
+            100% {
+                opacity: 1;
+                transform: translate(5%, -20%) scale(0.9) rotate(4deg);
+            }
+        }
+
+        /* --- KEYFRAMES MÓVIL --- */
+        @media (max-width: 650px) {
+            .app-container.shooting .photo-card.photo-1 {
+                animation: slideOutPhoto1Mobile var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            }
+
+            .app-container.shooting .photo-card.photo-2 {
+                animation: slideOutPhoto2Mobile var(--photo-slide-duration) cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                animation-delay: var(--photo-2-delay);
+            }
+        }
+
+        @keyframes slideOutPhoto1Mobile {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -100%) scale(0.1) rotate(0deg);
+            }
+
+            15% {
+                opacity: 1;
+            }
+
+            /* FASE 1: Centrada y recta */
+            65% {
+                opacity: 1;
+                transform: translate(-50%, 0%) scale(0.85) rotate(0deg);
+            }
+
+            /* FASE 2: Ligera separación lateral en móvil e inclinación */
+            100% {
+                opacity: 1;
+                transform: translate(-90%, -10%) scale(0.85) rotate(-3deg);
+            }
+        }
+
+        @keyframes slideOutPhoto2Mobile {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -100%) scale(0.1) rotate(0deg);
+            }
+
+            15% {
+                opacity: 1;
+            }
+
+            /* FASE 1: Centrada y recta */
+            65% {
+                opacity: 1;
+                transform: translate(-50%, 0%) scale(0.85) rotate(0deg);
+            }
+
+            /* FASE 2: Ligera separación lateral en móvil e inclinación */
+            100% {
+                opacity: 1;
+                transform: translate(-10%, -10%) scale(0.85) rotate(3deg);
+            }
+        }
+
+        /* --- ANIME PASO 2: POSICIONAMIENTO FINAL (Tras retirar la cámara, clase 'revealed') --- */
+
+        .app-container.revealed .photo-card {
+            pointer-events: auto;
+            /* Se vuelven interactivas */
+            cursor: pointer;
+            z-index: 200;
+            /* Pasan al frente una vez que la cámara ya no está */
+        }
+
+        /* Posición final Escritorio / Tablet (Separadas adecuadamente por el nuevo tamaño) */
+        .app-container.revealed .photo-card.photo-1 {
+            top: 50%;
+            left: calc(50% - clamp(140px, 22vw, 220px));
+            transform: translate(-50%, -50%) rotate(-6deg) scale(1);
+        }
+
+        .app-container.revealed .photo-card.photo-2 {
+            top: 50%;
+            left: calc(50% + clamp(140px, 22vw, 220px));
+            transform: translate(-50%, -50%) rotate(6deg) scale(1);
+        }
+
+        /* Hover sutil en el estado final */
+        .app-container.revealed .photo-card.photo-1:hover {
+            transform: translate(-50%, -55%) rotate(-3deg) scale(1.04);
+            box-shadow: 0 12px 28px var(--shadow-hover);
+        }
+
+        .app-container.revealed .photo-card.photo-2:hover {
+            transform: translate(-50%, -55%) rotate(3deg) scale(1.04);
+            box-shadow: 0 12px 28px var(--shadow-hover);
+        }
+
+        /* --- RESPONSIVE (MÓVIL) --- */
+        @media (max-width: 650px) {
+
+            /* Posición final apilada verticalmente en móvil */
+            .app-container.revealed .photo-card.photo-1 {
+                left: 50%;
+                top: calc(50% - clamp(140px, 22vh, 185px));
+                transform: translate(-50%, -50%) rotate(-4deg) scale(1);
+            }
+
+            .app-container.revealed .photo-card.photo-2 {
+                left: 50%;
+                top: calc(50% + clamp(140px, 22vh, 185px));
+                transform: translate(-50%, -50%) rotate(4deg) scale(1);
+            }
+
+            /* Hover móvil */
+            .app-container.revealed .photo-card.photo-1:hover {
+                transform: translate(-50%, -53%) rotate(-2deg) scale(1.03);
+            }
+
+            .app-container.revealed .photo-card.photo-2:hover {
+                transform: translate(-50%, -47%) rotate(2deg) scale(1.03);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container" id="appContainer">
+        <!-- Capa de Flash -->
+        <div class="flash-overlay" id="flashOverlay"></div>
+
+        <!-- Capa Independiente de Fotos (z-index: 100) -->
+        <div class="photos-container" id="photosContainer">
+            <!-- Foto 1 -->
+            <div class="photo-card photo-1" id="photo1" role="button" tabindex="0" aria-label="Ver Formulario 1">
+                <img id="photo1Img" src="" alt="Foto 1">
+                <span class="photo-caption">Inscripciones Cantera</span>
+            </div>
+
+            <!-- Foto 2 -->
+            <div class="photo-card photo-2" id="photo2" role="button" tabindex="0" aria-label="Ver Formulario 2">
+                <img id="photo2Img" src="" alt="Foto 2">
+                <span class="photo-caption">Inscripciones Senior</span>
+            </div>
+        </div>
+
+        <!-- Capa Independiente de la Cámara (z-index: 10) -->
+        <div class="camera-container" id="cameraContainer">
+            <div class="camera-body" id="cameraBody" role="button" tabindex="0" aria-label="Disparar Cámara Polaroid">
+                <img id="cameraImg" src="" alt="Cámara Polaroid">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        //         SECCIÓN DE CONFIGURACIÓN
+        // ==========================================
+
+        // Rutas de las imágenes
+        const CAMERA_IMAGE = 'camera.png';
+        const PHOTO_1_IMAGE = 'foto1.png';
+        const PHOTO_2_IMAGE = 'foto2.png';
+
+        // Enlaces de Google Forms (u otros destinos)
+        const PHOTO_1_URL = 'https://forms.google.com/';
+        const PHOTO_2_URL = 'https://forms.google.com/';
+
+        // Tiempos y Duraciones de Animación (en milisegundos)
+        const FLASH_DURATION = 650;         // Duración del destello blanco (más lento y suave)
+        const PHOTO_SLIDE_DURATION = 1200;   // Duración de la animación de salida de cada foto
+        const CAMERA_EXIT_DURATION = 1000;   // Duración de la subida de la cámara
+
+        // Desfase (delay) entre la salida de la Foto 1 y la Foto 2 (milisegundos)
+        const PHOTO_2_DELAY = 600;
+
+        // ==========================================
+        //        INICIALIZACIÓN Y APLICACIÓN
+        // ==========================================
+
+        // Asignar imágenes
+        document.getElementById('cameraImg').src = CAMERA_IMAGE;
+        document.getElementById('photo1Img').src = PHOTO_1_IMAGE;
+        document.getElementById('photo2Img').src = PHOTO_2_IMAGE;
+
+        // Inyectar duraciones a CSS
+        const root = document.documentElement;
+        root.style.setProperty('--flash-duration', `${FLASH_DURATION}ms`);
+        root.style.setProperty('--photo-slide-duration', `${PHOTO_SLIDE_DURATION}ms`);
+        root.style.setProperty('--camera-exit-duration', `${CAMERA_EXIT_DURATION}ms`);
+        root.style.setProperty('--photo-2-delay', `${PHOTO_2_DELAY}ms`);
+
+        // Referencias al DOM
+        const appContainer = document.getElementById('appContainer');
+        const cameraContainer = document.getElementById('cameraContainer');
+        const cameraBody = document.getElementById('cameraBody');
+        const flashOverlay = document.getElementById('flashOverlay');
+        const photo1 = document.getElementById('photo1');
+        const photo2 = document.getElementById('photo2');
+
+        let isSequenceTriggered = false;
+
+        // --- SECUENCIA DE DISPARO ---
+        function triggerPolaroidSequence() {
+            if (isSequenceTriggered) return;
+            isSequenceTriggered = true;
+
+            // Bloquear interacción con la cámara inmediatamente
+            cameraBody.style.pointerEvents = 'none';
+
+            // 1. Activar el flash visual
+            flashOverlay.classList.add('active');
+            setTimeout(() => {
+                flashOverlay.classList.remove('active');
+            }, FLASH_DURATION);
+
+            // 2. PAUSA DE 1 SEGUNDO (1000ms) tras iniciar el flash antes de expulsar las fotos
+            setTimeout(() => {
+
+                // 3. Disparar salida de fotos (Foto 1 sale primero, Foto 2 sale después con delay)
+                appContainer.classList.add('shooting');
+
+                // 4. Esperamos a que la Foto 2 termine de salir completamente
+                const totalSlideTime = PHOTO_SLIDE_DURATION + PHOTO_2_DELAY;
+
+                // 5. Retirar cámara hacia arriba sola (las fotos se quedan en su lugar)
+                setTimeout(() => {
+                    cameraContainer.classList.add('camera-exit');
+
+                    // 6. Finalizar secuencia: La cámara desaparece y las fotos toman su posición final interactiva
+                    setTimeout(() => {
+                        appContainer.classList.remove('shooting');
+                        appContainer.classList.add('revealed');
+
+                        // Desactivar el display de la cámara para que no interfiera
+                        cameraContainer.style.display = 'none';
+                    }, CAMERA_EXIT_DURATION);
+
+                }, totalSlideTime + 100);
+
+            }, 1000); // <-- Pausa de 1 segundo (1000ms)
+        }
+
+        // --- EVENTOS DE INTERACCIÓN ---
+
+        // Lanzar secuencia con clic o teclado en la cámara
+        cameraBody.addEventListener('click', triggerPolaroidSequence);
+        cameraBody.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                triggerPolaroidSequence();
+            }
+        });
+
+        // Eventos para abrir los enlaces al finalizar la secuencia
+        function openLink(url) {
+            if (appContainer.classList.contains('revealed')) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
+        }
+
+        photo1.addEventListener('click', () => openLink(PHOTO_1_URL));
+        photo1.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openLink(PHOTO_1_URL);
+            }
+        });
+
+        photo2.addEventListener('click', () => openLink(PHOTO_2_URL));
+        photo2.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openLink(PHOTO_2_URL);
+            }
+        });
+    </script>
+</body>
+
+</html>
